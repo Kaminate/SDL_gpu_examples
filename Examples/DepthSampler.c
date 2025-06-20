@@ -14,6 +14,152 @@ static SDL_GPUSampler* EffectSampler;
 static float Time;
 static int SceneWidth, SceneHeight;
 
+static int InitSceneShadersAndPipeline(Context* context)
+{
+  SDL_GPUShader* sceneVertexShader = LoadShader( context->Device, "PositionColorTransform.vert", 0, 1, 0, 0 );
+  if( sceneVertexShader == NULL )
+  {
+    SDL_Log( "Failed to create 'PositionColorTransform' vertex shader!" );
+    return -1;
+  }
+
+  SDL_GPUShader* sceneFragmentShader = LoadShader( context->Device, "SolidColorDepth.frag", 0, 1, 0, 0 );
+  if( sceneFragmentShader == NULL )
+  {
+    SDL_Log( "Failed to create 'SolidColorDepth' fragment shader!" );
+    return -1;
+  }
+
+  SDL_GPUGraphicsPipelineCreateInfo pipelineCreateInfo = {
+    .target_info = {
+      .num_color_targets = 1,
+      .color_target_descriptions = ( SDL_GPUColorTargetDescription[] ){{
+        .format = SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM
+      }},
+      .has_depth_stencil_target = true,
+      .depth_stencil_format = SDL_GPU_TEXTUREFORMAT_D16_UNORM
+    },
+    .depth_stencil_state = ( SDL_GPUDepthStencilState ){
+      .enable_depth_test = true,
+      .enable_depth_write = true,
+      .enable_stencil_test = false,
+      .compare_op = SDL_GPU_COMPAREOP_LESS,
+      .write_mask = 0xFF
+    },
+    .rasterizer_state = ( SDL_GPURasterizerState ){
+      .cull_mode = SDL_GPU_CULLMODE_NONE,
+      .fill_mode = SDL_GPU_FILLMODE_FILL,
+      .front_face = SDL_GPU_FRONTFACE_COUNTER_CLOCKWISE
+    },
+    .vertex_input_state = ( SDL_GPUVertexInputState ){
+      .num_vertex_buffers = 1,
+      .vertex_buffer_descriptions = ( SDL_GPUVertexBufferDescription[] ){{
+        .slot = 0,
+        .input_rate = SDL_GPU_VERTEXINPUTRATE_VERTEX,
+        .instance_step_rate = 0,
+        .pitch = sizeof( PositionColorVertex )
+      }},
+      .num_vertex_attributes = 2,
+      .vertex_attributes = ( SDL_GPUVertexAttribute[] ){{
+        .buffer_slot = 0,
+        .format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT3,
+        .location = 0,
+        .offset = 0
+      }, {
+        .buffer_slot = 0,
+        .format = SDL_GPU_VERTEXELEMENTFORMAT_UBYTE4_NORM,
+        .location = 1,
+        .offset = sizeof( float ) * 3
+      }}
+    },
+    .primitive_type = SDL_GPU_PRIMITIVETYPE_TRIANGLELIST,
+    .vertex_shader = sceneVertexShader,
+    .fragment_shader = sceneFragmentShader
+  };
+
+  ScenePipeline = SDL_CreateGPUGraphicsPipeline( context->Device, &pipelineCreateInfo );
+  if( ScenePipeline == NULL )
+  {
+    SDL_Log( "Failed to create Scene pipeline!" );
+    return -1;
+  }
+
+  SDL_ReleaseGPUShader( context->Device, sceneVertexShader );
+  SDL_ReleaseGPUShader( context->Device, sceneFragmentShader );
+  return 0;
+}
+
+static int InitEffectShadersAndPipeline(Context* context)
+{
+  SDL_GPUShader* effectVertexShader = LoadShader( context->Device, "TexturedQuad.vert", 0, 0, 0, 0 );
+  if( effectVertexShader == NULL )
+  {
+    SDL_Log( "Failed to create 'TexturedQuad' vertex shader!" );
+    return -1;
+  }
+
+  SDL_GPUShader* effectFragmentShader = LoadShader( context->Device, "DepthOutline.frag", 2, 1, 0, 0 );
+  if( effectFragmentShader == NULL )
+  {
+    SDL_Log( "Failed to create 'DepthOutline' fragment shader!" );
+    return -1;
+  }
+
+  SDL_GPUGraphicsPipelineCreateInfo pipelineCreateInfo = {
+    .target_info = {
+      .num_color_targets = 1,
+      .color_target_descriptions = ( SDL_GPUColorTargetDescription[] ){{
+        .format = SDL_GetGPUSwapchainTextureFormat( context->Device, context->Window ),
+        .blend_state = ( SDL_GPUColorTargetBlendState ) {
+          .enable_blend = true,
+          .src_color_blendfactor = SDL_GPU_BLENDFACTOR_ONE,
+          .dst_color_blendfactor = SDL_GPU_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
+          .color_blend_op = SDL_GPU_BLENDOP_ADD,
+          .src_alpha_blendfactor = SDL_GPU_BLENDFACTOR_ONE,
+          .dst_alpha_blendfactor = SDL_GPU_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
+          .alpha_blend_op = SDL_GPU_BLENDOP_ADD,
+        }
+      }},
+    },
+    .vertex_input_state = ( SDL_GPUVertexInputState ){
+      .num_vertex_buffers = 1,
+      .vertex_buffer_descriptions = ( SDL_GPUVertexBufferDescription[] ){{
+        .slot = 0,
+        .input_rate = SDL_GPU_VERTEXINPUTRATE_VERTEX,
+        .instance_step_rate = 0,
+        .pitch = sizeof( PositionTextureVertex )
+      }},
+      .num_vertex_attributes = 2,
+      .vertex_attributes = ( SDL_GPUVertexAttribute[] ){{
+        .buffer_slot = 0,
+        .format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT3,
+        .location = 0,
+        .offset = 0
+      }, {
+        .buffer_slot = 0,
+        .format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT2,
+        .location = 1,
+        .offset = sizeof( float ) * 3
+      }}
+    },
+    .primitive_type = SDL_GPU_PRIMITIVETYPE_TRIANGLELIST,
+    .vertex_shader = effectVertexShader,
+    .fragment_shader = effectFragmentShader
+  };
+
+  EffectPipeline = SDL_CreateGPUGraphicsPipeline( context->Device, &pipelineCreateInfo );
+  if( EffectPipeline == NULL )
+  {
+    SDL_Log( "Failed to create Outline Effect pipeline!" );
+    return -1;
+  }
+
+  SDL_ReleaseGPUShader( context->Device, effectVertexShader );
+  SDL_ReleaseGPUShader( context->Device, effectFragmentShader );
+
+  return 0;
+}
+
 static int Init(Context* context)
 {
 	int result = CommonInit(context, 0);
@@ -24,142 +170,11 @@ static int Init(Context* context)
 
 	// Creates the Shaders & Pipelines
 	{
-		SDL_GPUShader* sceneVertexShader = LoadShader(context->Device, "PositionColorTransform.vert", 0, 1, 0, 0);
-		if (sceneVertexShader == NULL)
-		{
-			SDL_Log("Failed to create 'PositionColorTransform' vertex shader!");
-			return -1;
-		}
+		if( result = InitSceneShadersAndPipeline( context ) )
+			return result;
 
-		SDL_GPUShader* sceneFragmentShader = LoadShader(context->Device, "SolidColorDepth.frag", 0, 1, 0, 0);
-		if (sceneFragmentShader == NULL)
-		{
-			SDL_Log("Failed to create 'SolidColorDepth' fragment shader!");
-			return -1;
-		}
-
-		SDL_GPUShader* effectVertexShader = LoadShader(context->Device, "TexturedQuad.vert", 0, 0, 0, 0);
-		if (effectVertexShader == NULL)
-		{
-			SDL_Log("Failed to create 'TexturedQuad' vertex shader!");
-			return -1;
-		}
-
-		SDL_GPUShader* effectFragmentShader = LoadShader(context->Device, "DepthOutline.frag", 2, 1, 0, 0);
-		if (effectFragmentShader == NULL)
-		{
-			SDL_Log("Failed to create 'DepthOutline' fragment shader!");
-			return -1;
-		}
-
-		SDL_GPUGraphicsPipelineCreateInfo pipelineCreateInfo = {
-			.target_info = {
-				.num_color_targets = 1,
-				.color_target_descriptions = (SDL_GPUColorTargetDescription[]){{
-					.format = SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM
-				}},
-				.has_depth_stencil_target = true,
-				.depth_stencil_format = SDL_GPU_TEXTUREFORMAT_D16_UNORM
-			},
-			.depth_stencil_state = (SDL_GPUDepthStencilState){
-				.enable_depth_test = true,
-				.enable_depth_write = true,
-				.enable_stencil_test = false,
-				.compare_op = SDL_GPU_COMPAREOP_LESS,
-				.write_mask = 0xFF
-			},
-			.rasterizer_state = (SDL_GPURasterizerState){
-				.cull_mode = SDL_GPU_CULLMODE_NONE,
-				.fill_mode = SDL_GPU_FILLMODE_FILL,
-				.front_face = SDL_GPU_FRONTFACE_COUNTER_CLOCKWISE
-			},
-			.vertex_input_state = (SDL_GPUVertexInputState){
-				.num_vertex_buffers = 1,
-				.vertex_buffer_descriptions = (SDL_GPUVertexBufferDescription[]){{
-					.slot = 0,
-					.input_rate = SDL_GPU_VERTEXINPUTRATE_VERTEX,
-					.instance_step_rate = 0,
-					.pitch = sizeof(PositionColorVertex)
-				}},
-				.num_vertex_attributes = 2,
-				.vertex_attributes = (SDL_GPUVertexAttribute[]){{
-					.buffer_slot = 0,
-					.format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT3,
-					.location = 0,
-					.offset = 0
-				}, {
-					.buffer_slot = 0,
-					.format = SDL_GPU_VERTEXELEMENTFORMAT_UBYTE4_NORM,
-					.location = 1,
-					.offset = sizeof(float) * 3
-				}}
-			},
-			.primitive_type = SDL_GPU_PRIMITIVETYPE_TRIANGLELIST,
-			.vertex_shader = sceneVertexShader,
-			.fragment_shader = sceneFragmentShader
-		};
-
-		ScenePipeline = SDL_CreateGPUGraphicsPipeline(context->Device, &pipelineCreateInfo);
-		if (ScenePipeline == NULL)
-		{
-			SDL_Log("Failed to create Scene pipeline!");
-			return -1;
-		}
-
-		pipelineCreateInfo = (SDL_GPUGraphicsPipelineCreateInfo){
-			.target_info = {
-				.num_color_targets = 1,
-				.color_target_descriptions = (SDL_GPUColorTargetDescription[]){{
-					.format = SDL_GetGPUSwapchainTextureFormat(context->Device, context->Window),
-					.blend_state = (SDL_GPUColorTargetBlendState) {
-						.enable_blend = true,
-						.src_color_blendfactor = SDL_GPU_BLENDFACTOR_ONE,
-						.dst_color_blendfactor = SDL_GPU_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
-						.color_blend_op = SDL_GPU_BLENDOP_ADD,
-						.src_alpha_blendfactor = SDL_GPU_BLENDFACTOR_ONE,
-						.dst_alpha_blendfactor = SDL_GPU_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
-						.alpha_blend_op = SDL_GPU_BLENDOP_ADD,
-					}
-				}},
-			},
-			.vertex_input_state = (SDL_GPUVertexInputState){
-				.num_vertex_buffers = 1,
-				.vertex_buffer_descriptions = (SDL_GPUVertexBufferDescription[]){{
-					.slot = 0,
-					.input_rate = SDL_GPU_VERTEXINPUTRATE_VERTEX,
-					.instance_step_rate = 0,
-					.pitch = sizeof(PositionTextureVertex)
-				}},
-				.num_vertex_attributes = 2,
-				.vertex_attributes = (SDL_GPUVertexAttribute[]){{
-					.buffer_slot = 0,
-					.format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT3,
-					.location = 0,
-					.offset = 0
-				}, {
-					.buffer_slot = 0,
-					.format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT2,
-					.location = 1,
-					.offset = sizeof(float) * 3
-				}}
-			},
-			.primitive_type = SDL_GPU_PRIMITIVETYPE_TRIANGLELIST,
-			.vertex_shader = effectVertexShader,
-			.fragment_shader = effectFragmentShader
-		};
-
-		EffectPipeline = SDL_CreateGPUGraphicsPipeline(context->Device, &pipelineCreateInfo);
-		if (EffectPipeline == NULL)
-		{
-			SDL_Log("Failed to create Outline Effect pipeline!");
-			return -1;
-		}
-
-		SDL_ReleaseGPUShader(context->Device, effectVertexShader);
-		SDL_ReleaseGPUShader(context->Device, effectFragmentShader);
-
-		SDL_ReleaseGPUShader(context->Device, sceneVertexShader);
-		SDL_ReleaseGPUShader(context->Device, sceneFragmentShader);
+		if( result = InitEffectShadersAndPipeline( context ) )
+			return result;
 	}
 
 	// Create the Scene Textures

@@ -245,6 +245,7 @@ int main(int argc, char **argv)
 
 			exampleIndex = gotoExampleIndex;
 			context.ExampleName = Examples[exampleIndex]->Name;
+			SDL_Log("--------------------------------------------");
 			SDL_Log("STARTING EXAMPLE: %s", context.ExampleName);
 			if (Examples[exampleIndex]->Init(&context) < 0)
 			{
