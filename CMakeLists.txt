@@ -1,6 +1,9 @@
 cmake_minimum_required(VERSION 3.10)
 project(SDL_gpu_examples)
-find_package(SDL3 REQUIRED)
+
+list( APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake" )
+include (FetchContent)
+include (sdl3)
 
 add_executable(SDL_gpu_examples
     Examples/main.c
